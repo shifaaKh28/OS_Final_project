@@ -9,7 +9,7 @@ class Graph
 private:
     std::vector<std::vector<int>> adjMat; // Adjacency matrix to represent the graph
     int numVertices;                      // Number of vertices
-    int numEdges;                         // Number of edges
+    int numEdges;                         // Number of edges    
 public:
     // Constructor to initialize the graph with a specific number of vertices
     Graph(int vertices);

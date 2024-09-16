@@ -1,36 +1,38 @@
-# Compiler
 CXX = g++
+CXXFLAGS = -g
+LDFLAGS = -pthread  # Add this line
 
-# Compiler flags
-CXXFLAGS = -std=c++11 -Wall
+# Define the executable file 
+EXEC = OS_Final_Project
 
-# Server source files (include server_main.cpp for the entry point)
-SERVER_SRCS = server.cpp graph.cpp MST_algo.cpp MST_tree.cpp server_main.cpp
-SERVER_OBJS = $(SERVER_SRCS:.cpp=.o)
+# List all the object files
+OBJS = graph.o MST_algo.o MST_tree.o server.o main.o
 
-# Client source files (main.cpp for the client)
-CLIENT_SRCS = main.cpp
-CLIENT_OBJS = $(CLIENT_SRCS:.cpp=.o)
+# Default target
+all: $(EXEC)
 
-# Executable names
-SERVER_EXEC = mst_server
-CLIENT_EXEC = mst_client
+# Link the program
+$(EXEC): $(OBJS)
+	$(CXX) $(LDFLAGS) -o $@ $^
 
-# Default target to build both server and client
-all: $(SERVER_EXEC) $(CLIENT_EXEC)
+# Compile the source files into object files
+graph.o: graph.cpp graph.hpp
+	$(CXX) $(CXXFLAGS) -c $<
 
-# Rule to build the server executable (with server_main.cpp)
-$(SERVER_EXEC): $(SERVER_OBJS)
-	$(CXX) $(CXXFLAGS) -o $(SERVER_EXEC) $(SERVER_OBJS)
+MST_algo.o: MST_algo.cpp MST_algo.hpp
+	$(CXX) $(CXXFLAGS) -c $<
 
-# Rule to build the client executable (with main.cpp)
-$(CLIENT_EXEC): $(CLIENT_OBJS)
-	$(CXX) $(CXXFLAGS) -o $(CLIENT_EXEC) $(CLIENT_OBJS)
+MST_tree.o: MST_tree.cpp MST_tree.hpp
+	$(CXX) $(CXXFLAGS) -c $<
 
-# Rule to build object files
-%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+server.o: server.cpp server.hpp
+	$(CXX) $(CXXFLAGS) -c $<
 
-# Clean up the build
+main.o: main.cpp
+	$(CXX) $(CXXFLAGS) -c $<
+
+# Clean up
 clean:
-	rm -f $(SERVER_OBJS) $(CLIENT_OBJS) $(SERVER_EXEC) $(CLIENT_EXEC)
+	rm -f $(OBJS) $(EXEC)
+
+.PHONY: all clean
