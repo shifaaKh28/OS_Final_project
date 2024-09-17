@@ -1,105 +1,169 @@
 #include <iostream>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <unistd.h>
-#include <cstring>
-#include "server.hpp"
+#include <thread>
+#include <netinet/in.h>  // For socket programming
+#include <unistd.h>      // For close()
+#include <sstream>
+#include <string>
 #include "MST_algo.hpp"
-#include <string.h>
-#include "Pipeline.hpp"
-#include "Activeobject.hpp"
+#include "graph.hpp"
+#include "pipeline.hpp"
+#include "active_object.hpp"
 
-using namespace std;
+// Define server port and buffer size
+#define PORT 8080
+#define BUFFER_SIZE 1024
 
-Graph graph;
-ActiveObject activeObject;
-
-#define PORT 8080  // The port number to connect to the server
-
-// Function to handle the "Newgraph" command
-void handleNewGraph(int client_fd) {
-    string response = "Enter edges in format: <from> <to> <weight>, -1 to finish.\n";
-    send(client_fd, response.c_str(), response.size(), 0);
-    cout << "Client " << client_fd << " used init command." << endl;
+void handleClient(int clientSocket, std::unique_ptr<Graph>& graph) {
+    char buffer[BUFFER_SIZE] = {0};
     
+    // Continue reading commands from the client until they close the connection
     while (true) {
-        char buf[256];
-        int nbytes = recv(client_fd, buf, sizeof buf, 0);
-        if (nbytes <= 0) {
-            cerr << "Error receiving data from client" << endl;
-            break;
-        }
-        buf[nbytes] = '\0';
+        int bytesRead = read(clientSocket, buffer, BUFFER_SIZE);
         
-        int from, to, weight;
-        sscanf(buf, "%d %d %d", &from, &to, &weight);
-        if (from == -1) {
-            response = "Successfully inputed all edges.\n";
-            send(client_fd, response.c_str(), response.size(), 0);
+        // If no data is received or the connection is closed, break the loop
+        if (bytesRead <= 0) {
+            std::cout << "Client disconnected.\n";
             break;
         }
-        graph.addEdge(from, to, weight);
+
+        std::string request(buffer, bytesRead);
+        std::stringstream ss(request);
+        std::string command;
+        ss >> command;
+
+        if (command == "CREATE") {
+            int size;
+            ss >> size;
+            graph = std::unique_ptr<Graph>(new Graph(size));  // Create a new graph with the specified size
+            std::string response = "Graph created with " + std::to_string(size) + " vertices.\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        } 
+        else if (command == "ADD") {
+            if (!graph) {
+                std::string response = "Graph is not created. Use CREATE command first.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                continue;
+            }
+
+            int u, v, weight;
+            ss >> u >> v >> weight;
+            graph->addEdge(u, v, weight);
+            std::string response = "Edge added: (" + std::to_string(u) + ", " + std::to_string(v) + ") with weight " + std::to_string(weight) + "\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        } 
+        else if (command == "REMOVE") {
+            if (!graph) {
+                std::string response = "Graph is not created. Use CREATE command first.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                continue;
+            }
+
+            int u, v;
+            ss >> u >> v;
+            graph->removeEdge(u, v);
+            std::string response = "Edge removed: (" + std::to_string(u) + ", " + std::to_string(v) + ")\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        } 
+        else if (command == "SOLVE") {
+            if (!graph) {
+                std::string response = "Graph is not created. Use CREATE command first.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                continue;
+            }
+
+            std::string algorithm;
+            ss >> algorithm;
+
+            MSTAlgo* algo = nullptr;
+            if (algorithm == "PRIM") {
+                algo = MSTFactory::createMSTAlgorithm(MSTFactory::PRIM);
+            } else if (algorithm == "KRUSKAL") {
+                algo = MSTFactory::createMSTAlgorithm(MSTFactory::KRUSKAL);
+            }
+
+            if (algo) {
+                MSTTree mst = algo->computeMST(*graph);
+                int totalWeight = mst.getTotalWeight();
+                std::string response = "MST total weight: " + std::to_string(totalWeight) + "\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                delete algo;  // Clean up the algorithm object
+            } else {
+                std::string response = "Unknown algorithm requested.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+            }
+        } 
+        else {
+            std::string response = "Unknown command.\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        }
     }
-    cout << "Graph initialized." << endl;
+
+    close(clientSocket);  // Close the connection after processing
 }
+// Server function to handle incoming requests
+void runServer() {
+    int serverFd, newSocket;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
 
-// Function to handle the "Newedge" command
-void handleNewEdge(Graph*& graph, int u, int v, int weight,int client_fd) {
-    graph->addEdge(u, v, weight);
-    send(client_fd, "Edge added.\n", 12, 0);
+    // Creating server socket
+    if ((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+        perror("Socket failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Set socket options
+    if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
+        perror("setsockopt");
+        exit(EXIT_FAILURE);
+    }
+
+    // Set server address and bind to port
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
+
+    if (bind(serverFd, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        perror("Bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Start listening for incoming connections
+    if (listen(serverFd, 3) < 0) {
+        perror("Listen failed");
+        exit(EXIT_FAILURE);
+    }
+
+    std::cout << "Server is running and listening on port " << PORT << std::endl;
+
+    // Active Object for processing tasks asynchronously
+    ActiveObject activeObject;
+
+    // Main server loop to accept and process client requests
+    while (true) {
+        if ((newSocket = accept(serverFd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
+            perror("Accept failed");
+            exit(EXIT_FAILURE);
+        }
+
+        std::cout << "Connection established with client" << std::endl;
+
+        // Create a unique_ptr to the graph object
+        std::unique_ptr<Graph> graph;
+
+        // Enqueue the task to handle the client request using the Active Object
+        activeObject.enqueueTask([newSocket, &graph]() {
+            handleClient(newSocket, graph);
+        });
+    }
+
+    close(serverFd);  // Close server when finished
 }
-
-// Function to handle the "Removeedge" command
-void handleRemoveEdge(Graph*& graph, int u, int v, int client_fd) {
-    graph->removeEdge(u, v);
-    send(client_fd, "Edge removed.\n", 14, 0);
-}
-
-// Function to handle the "Kosaraju" command
-void handlePrim(int client_fd) {
-    cout << "Client #" << client_fd << " requested Prim algorithm.\n";
-    string response = "Searching MST with Prim algorithm...\n";
-    send(client_fd, response.c_str(), response.size(), 0);
- // Create an instance of Prim
-    Prim primInstance;
-    
-    // Create pipeline and add steps
-    Pipeline pipeline;
-    pipeline.addStep([client_fd, &primInstance] { // Capture the Prim instance by reference
-        auto mstTree = primInstance.computeMST(graph);
-    });
-    pipeline.addStep([client_fd] {
-        string response = "MST found.\n";
-        send(client_fd, response.c_str(), response.size(), 0);
-    });
-
-    // Enqueue the pipeline task
-    activeObject.enqueueTask([pipeline] {
-        pipeline.execute();
-    });
-}
-
 
 int main() {
-    std::cout << "Welcome to the MST Client!\n"
-              << "Available commands:\n"
-              << "ADD u v weight    -> Adds an edge between vertices u and v with the given weight.\n"
-              << "REMOVE u v        -> Removes the edge between vertices u and v.\n"
-              << "UPDATE u v weight -> Updates the weight of the edge between vertices u and v.\n"
-              << "SOLVE PRIM        -> Solves the MST using Prim's algorithm.\n"
-              << "SOLVE KRUSKAL     -> Solves the MST using Kruskal's algorithm.\n"
-              << "Type 'exit' to quit.\n";
-
-    std::string command;
-    while (true) {
-        std::cout << "\nEnter command: ";
-        std::getline(std::cin, command);
-
-        if (command == "exit") {
-            std::cout << "Exiting client..." << std::endl;
-            break;
-        }
-    }
+    // Start the server in the main function
+    runServer();
 
     return 0;
 }
