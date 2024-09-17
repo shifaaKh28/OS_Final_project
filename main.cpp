@@ -7,7 +7,7 @@
 #include "MST_algo.hpp"   
 #include "graph.hpp"      
 #include "Pipeline.hpp"    
-#include "Activeobject.hpp"
+#include "Activeobject.hpp"// Custom header for active object (asynchronous task management)
 
 // Define constants for server port and buffer size
 #define PORT 8080              // The port on which the server will listen
@@ -120,64 +120,63 @@ void handleClient(int clientSocket, std::unique_ptr<Graph>& graph) {
  * and processes their requests asynchronously using the Active Object pattern.
  */
 void runServer() {
-    int serverFd, newSocket;  // File descriptors for the server and client sockets
-    struct sockaddr_in address;  // Server address structure
-    int opt = 1;  // Option value for setsockopt()
-    int addrlen = sizeof(address);  // Size of the address structure
+    int serverFd, newSocket;
+    struct sockaddr_in address;
+    int opt = 1;
+    int addrlen = sizeof(address);
 
-    // Creating a socket for the server
+    // Creating server socket
     if ((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("Socket failed");  // If socket creation fails, print an error and exit
+        perror("Socket failed");
         exit(EXIT_FAILURE);
     }
 
     // Set socket options to allow reuse of address and port
     if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        perror("setsockopt");  // If setting options fails, print an error and exit
+        perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    // Setting up the server address and binding it to the specified port
-    address.sin_family = AF_INET;  // IPv4
-    address.sin_addr.s_addr = INADDR_ANY;  // Bind to any available network interface
-    address.sin_port = htons(PORT);  // Convert port number to network byte order
+    // Set server address and bind to port
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(PORT);
 
     if (bind(serverFd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("Bind failed");  // If binding fails, print an error and exit
+        perror("Bind failed");
         exit(EXIT_FAILURE);
     }
 
-    // Start listening for incoming client connections (maximum 3 queued connections)
+    // Start listening for incoming connections
     if (listen(serverFd, 3) < 0) {
-        perror("Listen failed");  // If listening fails, print an error and exit
+        perror("Listen failed");
         exit(EXIT_FAILURE);
     }
 
-    std::cout << "Server is running and listening on port " << PORT << std::endl;  // Notify that the server is ready
+    std::cout << "Server is running and listening on port " << PORT << std::endl;
 
-    // Active Object for processing client requests asynchronously
-    ActiveObject activeObject;
+    // Create an ActiveObject with 4 worker threads for handling client requests concurrently
+    ActiveObject activeObject(4);  // 4 worker threads
 
-    // Infinite loop to continuously accept and handle new client connections
+    // Main server loop to accept and process client requests
     while (true) {
-        // Accept a new client connection
         if ((newSocket = accept(serverFd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            perror("Accept failed");  // If accepting a connection fails, print an error and continue
+            perror("Accept failed");
             exit(EXIT_FAILURE);
         }
 
-        std::cout << "Connection established with client" << std::endl;  // Notify that a new client has connected
+        std::cout << "Connection established with client" << std::endl;
 
         // Create a unique_ptr to the graph object for each client session
         std::unique_ptr<Graph> graph;
 
-        // Enqueue the task to handle the client request asynchronously
+        // Enqueue the task to handle the client request using the Active Object
         activeObject.enqueueTask([newSocket, &graph]() {
             handleClient(newSocket, graph);  // Pass the client socket and graph to the handler function
         });
     }
 
-    close(serverFd);  // Close the server socket when done (this won't happen in this loop)
+    close(serverFd);  // Close the server when finished
 }
 
 /**
