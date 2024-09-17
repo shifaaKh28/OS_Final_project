@@ -1,9 +1,11 @@
-#include <iostream>        
-#include <thread>         
-#include <unistd.h>       
-#include <sstream>         
+#include <iostream>      
+#include <thread>          
+#include <netinet/in.h>    // For socket programming (struct sockaddr_in, etc.)
+#include <unistd.h>        // For close() function
+#include <sstream>         // For string stream (to parse client requests)
 #include <string>          
-#include "graph.hpp"       
+#include "MST_algo.hpp"   
+#include "graph.hpp"      
 #include "Pipeline.hpp"    
 #include "Activeobject.hpp"
 
