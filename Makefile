@@ -1,38 +1,30 @@
+# Compiler
 CXX = g++
-CXXFLAGS = -g
-LDFLAGS = -pthread  # Add this line
 
-# Define the executable file 
-EXEC = OS_Final_Project
+# Compiler flags
+CXXFLAGS = -std=c++11 -Wall -pthread
 
-# List all the object files
-OBJS = graph.o MST_algo.o MST_tree.o server.o main.o
+# Executable name
+TARGET = server
 
-# Default target
-all: $(EXEC)
+# Source files
+SRC = main.cpp MST_algo.cpp graph.cpp MST_tree.cpp Activeobject.cpp Pipeline.cpp
 
-# Link the program
-$(EXEC): $(OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $^
+# Object files (generated from .cpp files)
+OBJ = $(SRC:.cpp=.o)
 
-# Compile the source files into object files
-graph.o: graph.cpp graph.hpp
-	$(CXX) $(CXXFLAGS) -c $<
+# Build the executable
+$(TARGET): $(OBJ)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJ)
 
-MST_algo.o: MST_algo.cpp MST_algo.hpp
-	$(CXX) $(CXXFLAGS) -c $<
+# Compile each source file into an object file
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-MST_tree.o: MST_tree.cpp MST_tree.hpp
-	$(CXX) $(CXXFLAGS) -c $<
-
-server.o: server.cpp server.hpp
-	$(CXX) $(CXXFLAGS) -c $<
-
-main.o: main.cpp
-	$(CXX) $(CXXFLAGS) -c $<
-
-# Clean up
+# Clean the build (remove object files and executable)
 clean:
-	rm -f $(OBJS) $(EXEC)
+	rm -f $(OBJ) $(TARGET)
 
-.PHONY: all clean
+# Run the server
+run: $(TARGET)
+	./$(TARGET)
