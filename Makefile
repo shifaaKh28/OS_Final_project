@@ -1,30 +1,45 @@
-# Compiler
+# Define the C++ compiler and the flags
 CXX = g++
+CXXFLAGS = -Wall -Wextra -std=c++11 -g -pthread -fprofile-arcs -ftest-coverage
+LDFLAGS = -lgcov -fprofile-arcs -ftest-coverage
 
-# Compiler flags
-CXXFLAGS = -std=c++11 -Wall -pthread
-
-# Executable name
+# Define the target executable
 TARGET = server
 
-# Source files
-SRC = main.cpp MST_algo.cpp graph.cpp MST_tree.cpp Activeobject.cpp Pipeline.cpp
+# Define the source files and object files
+SRCS = main.cpp MST_algo.cpp graph.cpp MST_tree.cpp Activeobject.cpp Pipeline.cpp
+OBJS = $(SRCS:.cpp=.o)
 
-# Object files (generated from .cpp files)
-OBJ = $(SRC:.cpp=.o)
+# Default target
+all: $(TARGET)
 
-# Build the executable
-$(TARGET): $(OBJ)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJ)
+# Rule to link the executable
+$(TARGET): $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
-# Compile each source file into an object file
+# Rule to compile source files into object files
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Clean the build (remove object files and executable)
-clean:
-	rm -f $(OBJ) $(TARGET)
+# Run Valgrind memory check
+valgrind: $(TARGET)
+	valgrind --leak-check=full --track-origins=yes --log-file=valgrind_report.txt ./$(TARGET)
 
-# Run the server
-run: $(TARGET)
+# Code Coverage target
+coverage: all
 	./$(TARGET)
+	gcov $(SRCS)
+	lcov --capture --directory . --output-file coverage.info
+	genhtml coverage.info --output-directory out
+
+# Clean intermediate coverage files
+coverage_clean:
+	rm -f *.gcno *.gcda *.gcov
+
+# Clean up all build files, intermediate files, and coverage files
+clean: coverage_clean
+	rm -f $(OBJS) $(TARGET) gmon.out callgrind.out coverage.info
+	rm -rf out valgrind_report.txt gprof_report.txt
+
+# Phony targets
+.PHONY: all clean coverage profile valgrind coverage_clean
