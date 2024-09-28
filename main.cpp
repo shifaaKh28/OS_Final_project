@@ -21,54 +21,43 @@
  * @param clientSocket - the socket file descriptor for the client connection
  * @param graph - a unique pointer to the graph data structure that will be manipulated
  */
-void handleClient(int clientSocket, std::unique_ptr<Graph> &graph)
-{
-    char buffer[BUFFER_SIZE] = {0}; // Create a buffer to store client requests
+void handleClient(int clientSocket) {
+    char buffer[BUFFER_SIZE] = {0};  
+    std::unique_ptr<Graph> graph;  // Each client gets its own graph
 
-    // Infinite loop to keep reading and processing commands from the client until disconnection
-    while (true)
-    {
-        int bytesRead = read(clientSocket, buffer, BUFFER_SIZE); // Read from the client
-
-        // If no data is received (client disconnected or error), exit the loop
-        if (bytesRead <= 0)
-        {
-            std::cout << "Client disconnected.\n"; // Notify that client has disconnected
-            break;                                 // Exit the loop to stop processing this client
+    // Client handling loop
+    while (true) {
+        int bytesRead = read(clientSocket, buffer, BUFFER_SIZE);
+        if (bytesRead <= 0) {
+            std::cout << "Client disconnected.\n";
+            break;
         }
 
-        // Convert the received buffer data into a string for easier processing
         std::string request(buffer, bytesRead);
-        std::stringstream ss(request); // Create a stringstream object for parsing the request
-        std::string command;           // Variable to hold the command part of the request
-        ss >> command;                 // Extract the command (e.g., CREATE, ADD, REMOVE, SOLVE)
+        std::stringstream ss(request);
+        std::string command;
+        ss >> command;
 
-        // Handle the "CREATE" command to create a new graph with the specified number of vertices
-        if (command == "CREATE")
-        {
-            int size;                                                                             // Variable to store the size of the graph
-            ss >> size;                                                                           // Read the size from the client request
-            graph = std::unique_ptr<Graph>(new Graph(size));                                      // Create a new graph object
-            std::string response = "Graph created with " + std::to_string(size) + " vertices.\n"; // Prepare response
-            send(clientSocket, response.c_str(), response.size(), 0);                             // Send response to client
-        }
-        // Handle the "ADD" command to add an edge between two vertices with a specific weight
-        else if (command == "ADD")
-        {
-            if (!graph)
-            {                                                                               // If the graph hasn't been created yet
-                std::string response = "Graph is not created. Use CREATE command first.\n"; // Error response
-                send(clientSocket, response.c_str(), response.size(), 0);                   // Send response to client
-                continue;                                                                   // Go back to the loop to await a new command
+        // Handle CREATE, ADD, REMOVE, SOLVE commands...
+        if (command == "CREATE") {
+            int size;
+            ss >> size;
+            graph = std::unique_ptr<Graph>(new Graph(size));  // Create a new graph for this client
+            std::string response = "Graph created with " + std::to_string(size) + " vertices.\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        } else if (command == "ADD") {
+            if (!graph) {
+                std::string response = "Graph is not created. Use CREATE command first.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                continue;
             }
 
-            int u, v, weight;                                                                                                                         // Variables to store vertices and weight
-            ss >> u >> v >> weight;                                                                                                                   // Extract the vertices and weight from the request
-            graph->addEdge(u, v, weight);                                                                                                             // Add the edge to the graph
-            std::string response = "Edge added: (" + std::to_string(u) + ", " + std::to_string(v) + ") with weight " + std::to_string(weight) + "\n"; // Prepare response
-            send(clientSocket, response.c_str(), response.size(), 0);                                                                                 // Send response to client
-        }
-        // Handle the "REMOVE" command to remove an edge between two vertices
+            int u, v, weight;
+            ss >> u >> v >> weight;
+            graph->addEdge(u, v, weight);  
+            std::string response = "Edge added: (" + std::to_string(u) + ", " + std::to_string(v) + ") with weight " + std::to_string(weight) + "\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        }         // Handle the "REMOVE" command to remove an edge between two vertices
         else if (command == "REMOVE")
         {
             if (!graph)
@@ -144,73 +133,54 @@ void handleClient(int clientSocket, std::unique_ptr<Graph> &graph)
  * This function sets up the server socket, listens for incoming client connections,
  * and processes their requests asynchronously using the Active Object pattern.
  */
-void runServer()
-{
+void runServer() {
     int serverFd, newSocket;
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
 
-    // Creating server socket
-    if ((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == 0)
-    {
+    if ((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Socket failed");
         exit(EXIT_FAILURE);
     }
 
-    // Set socket options to allow reuse of address and port
-    if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt)))
-    {
+    if (setsockopt(serverFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
         perror("setsockopt");
         exit(EXIT_FAILURE);
     }
 
-    // Set server address and bind to port
     address.sin_family = AF_INET;
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(serverFd, (struct sockaddr *)&address, sizeof(address)) < 0)
-    {
+    if (bind(serverFd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("Bind failed");
         exit(EXIT_FAILURE);
     }
 
-    // Start listening for incoming connections
-    if (listen(serverFd, 3) < 0)
-    {
+    if (listen(serverFd, 10) < 0) {
         perror("Listen failed");
         exit(EXIT_FAILURE);
     }
 
     std::cout << "Server is running and listening on port " << PORT << std::endl;
 
-    // Create an ActiveObject with 4 worker threads for handling client requests concurrently
-    ActiveObject activeObject(4); // 4 worker threads
-
-    // Main server loop to accept and process client requests
-    while (true)
-    {
-        if ((newSocket = accept(serverFd, (struct sockaddr *)&address, (socklen_t *)&addrlen)) < 0)
-        {
+    while (true) {
+        if ((newSocket = accept(serverFd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
             perror("Accept failed");
             exit(EXIT_FAILURE);
         }
 
         std::cout << "Connection established with client" << std::endl;
 
-        // Create a unique_ptr to the graph object for each client session
-        std::unique_ptr<Graph> graph;
-
-        // Enqueue the task to handle the client request using the Active Object
-        activeObject.enqueueTask([newSocket, &graph]()
-                                 {
-                                     handleClient(newSocket, graph); // Pass the client socket and graph to the handler function
-                                 });
+        // Create a new thread for each client, passing the client socket
+        std::thread clientThread(handleClient, newSocket);
+        clientThread.detach();  // Detach the thread to let it run independently
     }
 
-    close(serverFd); // Close the server when finished
+    close(serverFd);
 }
+
 
 /**
  * Main function to start the server.
