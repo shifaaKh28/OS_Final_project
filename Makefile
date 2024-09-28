@@ -1,7 +1,7 @@
 # Define the C++ compiler and the flags
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++11 -g -pthread -fprofile-arcs -ftest-coverage
-LDFLAGS = -lgcov -fprofile-arcs -ftest-coverage
+LDFLAGS = -lgcov -fprofile-arcs -ftest-coverage -lpthread
 
 # Define the target executable
 TARGET = server
@@ -15,7 +15,7 @@ all: $(TARGET)
 
 # Rule to link the executable
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	$(CXX) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
 # Rule to compile source files into object files
 %.o: %.cpp
@@ -28,9 +28,9 @@ valgrind: $(TARGET)
 # Code Coverage target
 coverage: all
 	./$(TARGET)
-	gcov $(SRCS)
-	lcov --capture --directory . --output-file coverage.info
-	genhtml coverage.info --output-directory out
+	gcov -o . $(SRCS) > tst.txt 2>&1
+	lcov --capture --directory . --output-file coverage.info >> tst.txt 2>&1
+	genhtml coverage.info --output-directory out >> tst.txt 2>&1
 
 # Clean intermediate coverage files
 coverage_clean:
