@@ -4,29 +4,25 @@
 #include <unistd.h>     // For close() function
 #include <sstream>      // For string stream (to parse client requests)
 #include <string>
+#include <atomic>       // Include this for std::atomic
 #include "MST_algo.hpp"
 #include "graph.hpp"
 #include "Pipeline.hpp"
 #include "Activeobject.hpp" // Custom header for active object (asynchronous task management)
 
-// Define constants for server port and buffer size
 #define PORT 8080        // The port on which the server will listen
 #define BUFFER_SIZE 1024 // Buffer size for reading data from the client
 
-/**
- * This function handles the requests coming from a single client. It reads the client's commands,
- * modifies the graph (if applicable), and processes MST algorithms based on the command.
- * The function loops until the client disconnects.
- *
- * @param clientSocket - the socket file descriptor for the client connection
- * @param graph - a unique pointer to the graph data structure that will be manipulated
- */
+std::atomic<bool> serverRunning(true);  // Global flag for server running status
+int serverFd;  // Declare serverFd globally so it can be accessed from multiple threads
+
+// This function handles the requests coming from a single client
 void handleClient(int clientSocket) {
     char buffer[BUFFER_SIZE] = {0};  
     std::unique_ptr<Graph> graph;  // Each client gets its own graph
 
     // Client handling loop
-    while (true) {
+    while (serverRunning) {
         int bytesRead = read(clientSocket, buffer, BUFFER_SIZE);
         if (bytesRead <= 0) {
             std::cout << "Client disconnected.\n";
@@ -38,7 +34,7 @@ void handleClient(int clientSocket) {
         std::string command;
         ss >> command;
 
-        // Handle CREATE, ADD, REMOVE, SOLVE commands...
+        // Handle CREATE, ADD, REMOVE, SOLVE commands
         if (command == "CREATE") {
             int size;
             ss >> size;
@@ -57,87 +53,71 @@ void handleClient(int clientSocket) {
             graph->addEdge(u, v, weight);  
             std::string response = "Edge added: (" + std::to_string(u) + ", " + std::to_string(v) + ") with weight " + std::to_string(weight) + "\n";
             send(clientSocket, response.c_str(), response.size(), 0);
-        }         // Handle the "REMOVE" command to remove an edge between two vertices
-        else if (command == "REMOVE")
-        {
-            if (!graph)
-            {                                                                               // If the graph hasn't been created yet
-                std::string response = "Graph is not created. Use CREATE command first.\n"; // Error response
-                send(clientSocket, response.c_str(), response.size(), 0);                   // Send response to client
-                continue;                                                                   // Go back to the loop to await a new command
+        } else if (command == "REMOVE") {
+            if (!graph) {
+                std::string response = "Graph is not created. Use CREATE command first.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                continue;
             }
 
-            int u, v;                                                                                        // Variables to store the vertices of the edge to be removed
-            ss >> u >> v;                                                                                    // Extract the vertices from the request
-            graph->removeEdge(u, v);                                                                         // Remove the edge from the graph
-            std::string response = "Edge removed: (" + std::to_string(u) + ", " + std::to_string(v) + ")\n"; // Prepare response
-            send(clientSocket, response.c_str(), response.size(), 0);                                        // Send response to client
-        }
-        // Handle the "SOLVE" command to solve the MST using either Prim's or Kruskal's algorithm
-        else if (command == "SOLVE")
-        {
-            if (!graph)
-            {                                                                               // If the graph hasn't been created yet
-                std::string response = "Graph is not created. Use CREATE command first.\n"; // Error response
-                send(clientSocket, response.c_str(), response.size(), 0);                   // Send response to client
-                continue;                                                                   // Go back to the loop to await a new command
+            int u, v;
+            ss >> u >> v;
+            graph->removeEdge(u, v);
+            std::string response = "Edge removed: (" + std::to_string(u) + ", " + std::to_string(v) + ")\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
+        } else if (command == "SOLVE") {
+            if (!graph) {
+                std::string response = "Graph is not created. Use CREATE command first.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                continue;
             }
 
-            std::string algorithm; // Variable to store the algorithm type
-            ss >> algorithm;       // Extract the algorithm type from the request (e.g., PRIM or KRUSKAL)
+            std::string algorithm;
+            ss >> algorithm;
 
-            MSTAlgo *algo = nullptr; // Pointer to the algorithm object
-            if (algorithm == "PRIM")
-            {
-                algo = MSTFactory::createMSTAlgorithm(MSTFactory::PRIM); // Use Prim's algorithm
-            }
-            else if (algorithm == "KRUSKAL")
-            {
-                algo = MSTFactory::createMSTAlgorithm(MSTFactory::KRUSKAL); // Use Kruskal's algorithm
+            MSTAlgo* algo = nullptr;
+            if (algorithm == "PRIM") {
+                algo = MSTFactory::createMSTAlgorithm(MSTFactory::PRIM);
+            } else if (algorithm == "KRUSKAL") {
+                algo = MSTFactory::createMSTAlgorithm(MSTFactory::KRUSKAL);
             }
 
-            if (algo)
-            {
-                MSTTree mst = algo->computeMST(*graph);                                           // Compute the MST of the current graph
-                int totalWeight = mst.getTotalWeight();                                           // Get the total weight of the MST
-                std::string response = "MST total weight: " + std::to_string(totalWeight) + "\n"; // Prepare response
-                send(clientSocket, response.c_str(), response.size(), 0);                         // Send response to client
-                delete algo;                                                                      // Clean up the algorithm object
+            if (algo) {
+                MSTTree mst = algo->computeMST(*graph);
+                int totalWeight = mst.getTotalWeight();
+                std::string response = "MST total weight: " + std::to_string(totalWeight) + "\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
+                delete algo;
+            } else {
+                std::string response = "Unknown algorithm requested.\n";
+                send(clientSocket, response.c_str(), response.size(), 0);
             }
-            else
-            {
-                std::string response = "Unknown algorithm requested.\n";  // Error response for unknown algorithm
-                send(clientSocket, response.c_str(), response.size(), 0); // Send response to client
-            }
-        }
-        // Add this within the handleClient function to handle the "SHUTDOWN" command
-        else if (command == "SHUTDOWN")
-        {
+        } else if (command == "SHUTDOWN") {
             std::string response = "Server shutting down.\n";
             send(clientSocket, response.c_str(), response.size(), 0);
-            close(clientSocket); // Close the client socket
-            exit(0);             // Exit the server process gracefully
-        }
-        // Handle any unknown commands
-        else
-        {
-            std::string response = "Unknown command.\n";              // Error response for unknown command
-            send(clientSocket, response.c_str(), response.size(), 0); // Send response to client
+            std::cout << "Client initiated shutdown command." << std::endl;
+            serverRunning = false;  // Signal to stop the server
+            close(serverFd);  // Close the server socket to unblock accept()
+            break;
+        } else {
+            std::string response = "Unknown command.\n";
+            send(clientSocket, response.c_str(), response.size(), 0);
         }
     }
 
-    close(clientSocket); // Close the client socket connection after processing
+    close(clientSocket);  // Close the client socket connection after processing
+    std::cout << "Client socket closed.\n";  // Debug message to indicate client socket closed
 }
 
-/**
- * This function sets up the server socket, listens for incoming client connections,
- * and processes their requests asynchronously using the Active Object pattern.
- */
+// Function to run the server
 void runServer() {
-    int serverFd, newSocket;
     struct sockaddr_in address;
     int opt = 1;
     int addrlen = sizeof(address);
+    int newSocket;  // Declare newSocket outside the while loop
+
+    // Create an ActiveObject with a thread pool of 4 threads
+    ActiveObject activeObject(4);
 
     if ((serverFd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Socket failed");
@@ -165,30 +145,44 @@ void runServer() {
 
     std::cout << "Server is running and listening on port " << PORT << std::endl;
 
-    while (true) {
-        if ((newSocket = accept(serverFd, (struct sockaddr*)&address, (socklen_t*)&addrlen)) < 0) {
-            perror("Accept failed");
-            exit(EXIT_FAILURE);
+    // Start a separate thread to listen for console input for shutdown
+    std::thread shutdownThread([]() {
+        std::string input;
+        while (serverRunning) {
+            std::cin >> input;  // Read input from the server's console
+            if (input == "shutdown") {
+                serverRunning = false;  // Set the flag to stop the server
+                std::cout << "Shutting down the server..." << std::endl;
+                close(serverFd);  // Close the listening socket to unblock accept()
+                break;  // Exit the loop, allowing shutdown to proceed
+            }
+        }
+    });
+
+    // Server main loop, runs while serverRunning is true
+    while (serverRunning) {
+        newSocket = accept(serverFd, (struct sockaddr*)&address, (socklen_t*)&addrlen);
+        if (newSocket < 0) {
+            if (serverRunning) {
+                perror("Accept failed");
+                exit(EXIT_FAILURE);
+            }
+            break;  // Exit the loop if accept() fails after serverRunning is set to false
         }
 
         std::cout << "Connection established with client" << std::endl;
 
-        // Create a new thread for each client, passing the client socket
-        std::thread clientThread(handleClient, newSocket);
-        clientThread.detach();  // Detach the thread to let it run independently
+        // Enqueue the client handling task using ActiveObject
+        activeObject.enqueueTask([newSocket]() {
+            handleClient(newSocket);  // Handle the client in a separate task
+        });
     }
 
-    close(serverFd);
+    shutdownThread.join();  // Wait for the shutdown thread to finish
+    std::cout << "Server has shut down gracefully.\n";
 }
 
-
-/**
- * Main function to start the server.
- * It calls runServer(), which handles the entire process of accepting and processing client requests.
- */
-int main()
-{
-    runServer(); // Start the server by calling runServer()
-
-    return 0; // Return 0 to indicate successful execution (this line will never be reached due to the infinite loop)
+int main() {
+    runServer();  // Start the server
+    return 0;
 }
