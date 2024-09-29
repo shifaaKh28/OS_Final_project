@@ -1,6 +1,6 @@
 # Define the C++ compiler and the flags
 CXX = g++
-CXXFLAGS = -Wall -Wextra -std=c++11 -g -pthread -fprofile-arcs -ftest-coverage
+CXXFLAGS = -Wall -Wextra -std=c++14 -g -pthread -fprofile-arcs -ftest-coverage
 LDFLAGS = -lgcov -fprofile-arcs -ftest-coverage -lpthread
 
 # Define the target executable
@@ -25,12 +25,19 @@ $(TARGET): $(OBJS)
 valgrind: $(TARGET)
 	valgrind --leak-check=full --track-origins=yes --log-file=valgrind_report.txt ./$(TARGET)
 
-# Code Coverage target
+# Run server with code coverage
 coverage: all
-	./$(TARGET)
-	gcov -o . $(SRCS) > tst.txt 2>&1
-	lcov --capture --directory . --output-file coverage.info >> tst.txt 2>&1
-	genhtml coverage.info --output-directory out >> tst.txt 2>&1
+	./$(TARGET) &
+	sleep 5 # Give time for server initialization
+	@echo "Server started. Connect clients via telnet (e.g., telnet localhost 8080)."
+	@echo "Test the commands and use SHUTDOWN to stop the server."
+	@echo "Once the server is shut down, the coverage will be generated."
+	@# Wait for server shutdown via SHUTDOWN command, don't use Ctrl+C
+	@while ps -C $(TARGET) > /dev/null; do sleep 1; done
+	gcov -o . $(SRCS) > coverage_report.txt 2>&1
+	lcov --capture --directory . --output-file coverage.info >> coverage_report.txt 2>&1
+	genhtml coverage.info --output-directory out >> coverage_report.txt 2>&1
+	@echo "Coverage report generated. View the 'out' directory for HTML report."
 
 # Clean intermediate coverage files
 coverage_clean:
