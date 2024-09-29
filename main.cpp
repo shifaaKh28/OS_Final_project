@@ -12,6 +12,8 @@
 #include "graph.hpp"
 #include "Pipeline.hpp"
 #include "Activeobject.hpp" // Custom header for active object (asynchronous task management)
+#include <csignal>  // For signal handling (SIGINT)
+#include <atomic>
 
 #define PORT 8080        // The port on which the server will listen
 #define BUFFER_SIZE 1024 // Buffer size for reading data from the client
@@ -24,6 +26,7 @@ std::queue<int> clientQueue;
 
 std::atomic<bool> serverRunning(true);  // Global flag for server running status
 int serverFd;  // Declare serverFd globally so it can be accessed from multiple threads
+
 
 // This function handles the requests coming from a single client
 void handleClient(int clientSocket) {
