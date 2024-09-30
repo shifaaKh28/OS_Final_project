@@ -1,21 +1,30 @@
 #include "Activeobject.hpp"
+#include <iostream>
+#include <thread>
+#include <functional>
+#include <mutex>
+#include <queue>
+#include <condition_variable>
 
 ActiveObject::ActiveObject(int numThreads) : running(true) {
-    // Launch the specified number of worker threads
     for (int i = 0; i < numThreads; ++i) {
-        workers.emplace_back(&ActiveObject::workerThread, this);  // Start a worker thread
+        workers.emplace_back(&ActiveObject::workerThread, this);
     }
 }
 
+// Destructor of ActiveObject to stop all threads immediately
 ActiveObject::~ActiveObject() {
     {
         std::unique_lock<std::mutex> lock(mtx);
         running = false;  // Signal all threads to stop
+        while (!tasks.empty()) {
+            tasks.pop();  // Clear all pending tasks
+        }
     }
     cv.notify_all();  // Notify all threads waiting on the condition variable
     for (std::thread &worker : workers) {
         if (worker.joinable()) {
-            worker.join();  // Wait for all threads to finish
+            worker.detach();  // Detach threads to avoid waiting
         }
     }
 }
@@ -23,9 +32,9 @@ ActiveObject::~ActiveObject() {
 void ActiveObject::enqueueTask(std::function<void()> task) {
     {
         std::unique_lock<std::mutex> lock(mtx);
-        tasks.push(std::move(task));  // Add the task to the queue
+        tasks.push(std::move(task));
     }
-    cv.notify_one();  // Notify one worker thread that a new task is available
+    cv.notify_one();
 }
 
 void ActiveObject::workerThread() {
@@ -33,13 +42,14 @@ void ActiveObject::workerThread() {
         std::function<void()> task;
         {
             std::unique_lock<std::mutex> lock(mtx);
-            cv.wait(lock, [this]() { return !tasks.empty() || !running; });  // Wait until there is a task or we are stopping
+            cv.wait(lock, [this]() { return !tasks.empty() || !running; });
             if (!running && tasks.empty()) {
-                return;  // Stop the thread if we are not running and no tasks are left
+                return;
             }
-            task = std::move(tasks.front());  // Get the next task
-            tasks.pop();  // Remove the task from the queue
+            task = std::move(tasks.front());
+            tasks.pop();
         }
-        task();  // Execute the task outside the lock
+        task();
+        std::cout << "Task executed by thread." << std::endl;
     }
 }
