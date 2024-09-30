@@ -2,25 +2,27 @@
 #define ACTIVEOBJECT_HPP
 
 #include <functional>
-#include <queue>
 #include <thread>
+#include <vector>
+#include <queue>
 #include <mutex>
 #include <condition_variable>
-#include <vector>
 
 class ActiveObject {
 public:
-    ActiveObject(int numThreads = 4);  // Constructor with number of worker threads
+    ActiveObject(int numThreads);
     ~ActiveObject();
-    void enqueueTask(std::function<void()> task);  // Enqueue a task for processing
+
+    void enqueueTask(std::function<void()> task);
 
 private:
-    std::queue<std::function<void()>> tasks;  // Queue of tasks to be executed
-    std::mutex mtx;  // Mutex to protect task queue
-    std::condition_variable cv;  // Condition variable to notify worker threads
-    std::vector<std::thread> workers;  // Vector to hold worker threads
-    bool running;  // Flag to indicate whether the ActiveObject is running
-    void workerThread();  // Function executed by each worker thread
+    void workerThread();
+
+    std::vector<std::thread> workers;
+    std::queue<std::function<void()>> tasks;
+    std::mutex mtx;
+    std::condition_variable cv;
+    bool running;
 };
 
-#endif // ACTIVEOBJECT_HPP
+#endif  // ACTIVEOBJECT_HPP
