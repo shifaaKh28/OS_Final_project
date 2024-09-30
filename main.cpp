@@ -11,6 +11,7 @@
 #include "MST_algo.hpp"
 #include "graph.hpp"
 #include "Pipeline.hpp"
+#include <csignal>
 #include "Activeobject.hpp" // Custom header for active object (asynchronous task management)
 
 #define PORT 8080        // The port on which the server will listen
@@ -24,6 +25,20 @@ std::queue<int> clientQueue;
 
 std::atomic<bool> serverRunning(true);  // Global flag for server running status
 int serverFd;  // Declare serverFd globally so it can be accessed from multiple threads
+
+
+// Signal handler to catch Ctrl + C (SIGINT)
+void signalHandler(int signum) {
+    std::cout << "Interrupt signal (" << signum << ") received. Shutting down server gracefully..." << std::endl;
+
+    // Set the flag to stop the server
+    serverRunning = false;
+
+    // Close the server socket to unblock the `accept()` call
+    close(serverFd);
+
+    // Perform any other cleanup you need here
+}
 
 /**
  * This function handles the requests coming from a single client.
@@ -237,6 +252,14 @@ void runServerWithLeaderFollower() {
 }
 
 int main() {
-    runServerWithLeaderFollower();  // Start the server with Leader-Follower
+    // Register signal handler for Ctrl + C (SIGINT)
+    signal(SIGINT, signalHandler);
+
+    // Start the server
+    runServerWithLeaderFollower();
+
+    // Ensure server stops cleanly and coverage data is generated
+    std::cout << "Server stopped. Now generating coverage data..." << std::endl;
     return 0;
 }
+
