@@ -1,55 +1,77 @@
 #include "Activeobject.hpp"
 #include <iostream>
-#include <thread>
-#include <functional>
-#include <mutex>
-#include <queue>
-#include <condition_variable>
 
-ActiveObject::ActiveObject(int numThreads) : running(true) {
+ActiveObject::ActiveObject(int numThreads) : running(true), cancelingTasks(false) {
+    // Launch the specified number of worker threads
     for (int i = 0; i < numThreads; ++i) {
         workers.emplace_back(&ActiveObject::workerThread, this);
     }
 }
 
-// Destructor of ActiveObject to stop all threads immediately
 ActiveObject::~ActiveObject() {
-    {
-        std::unique_lock<std::mutex> lock(mtx);
-        running = false;  // Signal all threads to stop
-        while (!tasks.empty()) {
-            tasks.pop();  // Clear all pending tasks
-        }
-    }
-    cv.notify_all();  // Notify all threads waiting on the condition variable
-    for (std::thread &worker : workers) {
-        if (worker.joinable()) {
-            worker.detach();  // Detach threads to avoid waiting
-        }
-    }
+    shutdown();  // Ensure that the threads are properly shut down
 }
 
+// Enqueue tasks to the task queue
 void ActiveObject::enqueueTask(std::function<void()> task) {
-    {
-        std::unique_lock<std::mutex> lock(mtx);
+    std::unique_lock<std::mutex> lock(mtx);
+    if (running && !cancelingTasks) {  // Only enqueue tasks if running and not in shutdown
         tasks.push(std::move(task));
+        cv.notify_one();  // Notify one waiting thread that a new task is available
     }
-    cv.notify_one();
 }
 
+// Worker thread function that processes tasks
 void ActiveObject::workerThread() {
-    while (running) {
+    while (true) {
         std::function<void()> task;
         {
             std::unique_lock<std::mutex> lock(mtx);
-            cv.wait(lock, [this]() { return !tasks.empty() || !running; });
-            if (!running && tasks.empty()) {
-                return;
+            // Wait for a task to be available or for shutdown
+            cv.wait(lock, [this]() { return !tasks.empty() || !running || cancelingTasks; });
+
+            if (!running || cancelingTasks) {
+                break;  // Exit if the object is shutting down or tasks are being cancelled
             }
-            task = std::move(tasks.front());
-            tasks.pop();
+
+            if (!tasks.empty()) {
+                task = std::move(tasks.front());  // Get the next task
+                tasks.pop();  // Remove the task from the queue
+            }
         }
-        task();
-        std::cout << "Task executed by thread." << std::endl;
+        
+        // Execute the task outside of the locked section
+        if (task) {
+            task();
+        }
+    }
+}
+
+// Cancel all pending tasks
+void ActiveObject::cancelAllTasks() {
+    std::unique_lock<std::mutex> lock(mtx);
+    cancelingTasks = true;
+    clearPendingTasks();  // Clear the task queue
+    cv.notify_all();  // Wake up all worker threads to ensure they exit if they are waiting
+}
+
+// Clear the task queue (called when canceling tasks)
+void ActiveObject::clearPendingTasks() {
+    while (!tasks.empty()) {
+        tasks.pop();  // Discard all tasks
+    }
+}
+
+// Shut down all worker threads gracefully
+void ActiveObject::shutdown() {
+    {
+        std::unique_lock<std::mutex> lock(mtx);
+        running = false;  // Signal all threads to stop
+    }
+    cv.notify_all();  // Wake up all waiting threads
+    for (std::thread &worker : workers) {
+        if (worker.joinable()) {
+            worker.join();  // Ensure all threads are joined properly
+        }
     }
 }
