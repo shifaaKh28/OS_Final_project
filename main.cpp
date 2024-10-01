@@ -156,7 +156,6 @@ void handleClient(int clientSocket)
     std::cout << "Client socket closed.\n";
 }
 
-// Ensure that threads stop immediately in the runServerWithLeaderFollower function
 void runServerWithLeaderFollower()
 {
     struct sockaddr_in address;
@@ -197,12 +196,14 @@ void runServerWithLeaderFollower()
 
     std::cout << "Server is running and listening on port " << PORT << std::endl;
 
+    // Start a thread pool for handling client requests
     std::vector<std::thread> threadPool;
     for (int i = 0; i < THREAD_POOL_SIZE; ++i)
     {
         threadPool.emplace_back([&]()
-                                {
-            while (serverRunning) {
+        {
+            while (serverRunning)
+            {
                 int clientSocket;
 
                 // Leader-Follower mechanism: One thread acts as the leader and processes a new connection.
@@ -210,11 +211,13 @@ void runServerWithLeaderFollower()
                     std::unique_lock<std::mutex> lock(leaderMutex);
                     leaderCV.wait(lock, [&]() { return !clientQueue.empty() || !serverRunning; });
 
-                    if (!serverRunning) {
+                    if (!serverRunning)
+                    {
                         return;  // Exit the thread immediately if the server is shutting down
                     }
 
-                    if (!clientQueue.empty()) {
+                    if (!clientQueue.empty())
+                    {
                         clientSocket = clientQueue.front();
                         clientQueue.pop();
                     }
@@ -224,28 +227,37 @@ void runServerWithLeaderFollower()
                 activeObject.enqueueTask([clientSocket]() {
                     handleClient(clientSocket);
                 });
-            } });
+            }
+        });
     }
 
-    // Start a separate thread to listen for shutdown command from the server console
-    std::thread shutdownThread([]()
-                               {
+    // Separate thread to listen for shutdown command from the server console
+    std::thread shutdownThread([&]()
+    {
         std::string input;
-        while (serverRunning) {
+        while (serverRunning)
+        {
             std::cin >> input;
-            if (input == "shutdown") {
-                serverRunning = false;
+            if (input == "shutdown")
+            {
                 std::cout << "Server shutting down...\n";
-                close(serverFd);  // Close server socket to unblock accept()
+                serverRunning = false;  // Signal to stop the server
+
+                // Properly shutdown the server socket to unblock accept() and stop listening
+                shutdown(serverFd, SHUT_RDWR);  // Disable read/write operations
+                close(serverFd);  // Close server socket
+
                 leaderCV.notify_all();  // Notify all waiting threads to stop
                 break;
             }
-        } });
+        }
+    });
 
-    // Server main loop for accepting clients
+    // Main loop to accept clients
     while (serverRunning)
     {
         newSocket = accept(serverFd, (struct sockaddr *)&address, (socklen_t *)&addrlen);
+
         if (newSocket >= 0)
         {
             std::cout << "New client connection accepted.\n";
@@ -261,18 +273,22 @@ void runServerWithLeaderFollower()
         }
     }
 
-    // Shut down the server immediately, without waiting for other threads to finish
+    // Wait for the shutdown thread to finish
     shutdownThread.join();
+
+    // Instead of detaching, we now join all threads to ensure they finish gracefully
     for (auto &th : threadPool)
     {
         if (th.joinable())
         {
-            th.detach(); // Detach threads to allow them to exit immediately
+            th.join();  // Wait for all threads to finish before exiting
         }
     }
 
     std::cout << "Server has shut down immediately.\n";
 }
+
+
 
 int main()
 {
