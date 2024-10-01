@@ -8,6 +8,7 @@
 #include <queue>
 #include <condition_variable>
 #include <mutex>
+#include <set>          // To track active clients
 #include "MST_algo.hpp"
 #include "graph.hpp"
 #include "Pipeline.hpp"
@@ -21,15 +22,36 @@ std::mutex leaderMutex;
 std::condition_variable leaderCV;
 std::queue<int> clientQueue;
 
+// A set to track all active client sockets
+std::set<int> activeClientSockets;
+std::mutex clientSocketMutex; // Mutex to protect access to activeClientSockets
+
 std::atomic<bool> serverRunning(true);
 std::atomic<int> activeClients(0);
 int serverFd;
+
+// Function to close all active client connections
+void closeAllClients() {
+    std::lock_guard<std::mutex> lock(clientSocketMutex);
+    for (int clientSocket : activeClientSockets) {
+        shutdown(clientSocket, SHUT_RDWR); // Disable read/write operations on the client socket
+        close(clientSocket);               // Close the client socket
+        std::cout << "Closed client socket: " << clientSocket << std::endl;
+    }
+    activeClientSockets.clear(); // Clear the set of active clients
+}
 
 // Function to handle client requests
 void handleClient(int clientSocket)
 {
     char buffer[BUFFER_SIZE] = {0};
     std::unique_ptr<Graph> graph;
+
+    // Add the client socket to the set of active clients
+    {
+        std::lock_guard<std::mutex> lock(clientSocketMutex);
+        activeClientSockets.insert(clientSocket);
+    }
 
     activeClients++; // Increment active clients counter
 
@@ -137,6 +159,7 @@ void handleClient(int clientSocket)
                 std::cout << "Client initiated shutdown command." << std::endl;
                 serverRunning = false;  // Signal to stop the server
                 close(serverFd);  // Close the server socket to unblock accept()
+                closeAllClients();  // Close all client connections
             });
         }
         else
@@ -152,6 +175,13 @@ void handleClient(int clientSocket)
     }
 
     activeClients--; // Decrement active clients counter
+
+    // Remove the client socket from the set of active clients
+    {
+        std::lock_guard<std::mutex> lock(clientSocketMutex);
+        activeClientSockets.erase(clientSocket);
+    }
+
     close(clientSocket); // Close the client socket connection after processing
     std::cout << "Client socket closed.\n";
 }
@@ -246,6 +276,8 @@ void runServerWithLeaderFollower()
                 // Properly shutdown the server socket to unblock accept() and stop listening
                 shutdown(serverFd, SHUT_RDWR);  // Disable read/write operations
                 close(serverFd);  // Close server socket
+
+                closeAllClients(); // Close all connected clients
 
                 leaderCV.notify_all();  // Notify all waiting threads to stop
                 break;
