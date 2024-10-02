@@ -4,7 +4,8 @@
 #include <vector>
 #include <functional>
 
-class Pipeline {
+class Pipeline
+{
 public:
     void addStep(std::function<void()> step);
     void execute() const;
