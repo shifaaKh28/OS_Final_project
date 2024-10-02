@@ -1,3 +1,4 @@
+# Contirbutors: Wasim Shebalny, Shifaa Khatib.
 # Define the C++ compiler and the flags
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++14 -g -pthread -fprofile-arcs -ftest-coverage
