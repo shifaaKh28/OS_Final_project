@@ -1,96 +1,174 @@
-# MST Solver Server
+# Minimum Spanning Tree (MST) Server
 
 ## Overview
 
-This project is a multi-threaded server application that computes the **Minimum Spanning Tree (MST)** of a graph using **Prim’s** and **Kruskal’s** algorithms. Clients can connect to the server, create graphs, add or remove edges, compute the MST, and retrieve various data about the MST, such as:
+This project implements a server that allows clients to create and manipulate a graph, compute the Minimum Spanning Tree (MST) using Prim's or Kruskal's algorithm, and retrieve various properties of the MST. The server processes commands from the client to add/remove edges, compute the MST, and query the following properties:
 
 - Total weight of the MST
-- Longest distance between any two vertices
-- Average distance between vertices
-- Shortest distance between two distinct vertices \(X_i\) and \(X_j\) where the edge belongs to the MST
+- Longest distance between two vertices in the MST
+- Average distance between any two vertices
+- Shortest distance between two vertices in the MST
 
-### Features
-- **Multi-threaded server:** Implements the **Leader-Follower** pattern for handling client connections.
-- **Pipeline processing:** Each client request is processed through a pipeline, allowing commands to be processed in steps.
-- **MST Algorithms:** Supports **Prim’s** and **Kruskal’s** algorithms for computing the MST.
-- **Query the MST:** Clients can query the MST for its total weight, longest and shortest distances, and average distance between vertices.
+Additionally, the server supports a `shutdown` command for closing individual client connections or shutting down the server gracefully.
 
-## Project Requirements
+## Features
 
-This server answers the following MST-related queries:
-1. **Total weight of the MST**
-2. **Longest distance between two vertices**
-3. **Average distance between vertices** 
-   - Assumes distance(x,x) = 0 for any vertex `x`
-   - Considers all distances \(X_i, X_j\) where \(i = 1..n, j ≥ i\)
-4. **Shortest distance between two vertices \(X_i, X_j\)** where \(i ≠ j\) and the edge belongs to the MST
+- **Graph Manipulation**: Create a graph, add edges, remove edges.
+- **MST Algorithms**: Compute MST using Prim's or Kruskal's algorithm.
+- **MST Properties**: Query properties like the total weight, longest distance, average distance, and shortest distance in the MST.
+- **Pipeline Processing**: Commands are processed asynchronously in a pipeline.
+- **Leader-Follower Pattern**: The server is designed using the Leader-Follower pattern for concurrency.
+- **Client Shutdown**: Clients can shut down their own connections.
+- **Server Shutdown**: The server can be shut down gracefully by typing `shutdown` in the server's console.
 
-The server processes requests in both **Leader-Follower** and **Pipeline** patterns.
+## Installation
 
-## Setup
+1. **Clone the Repository**:
+   ```bash
+   git clone <repository-url>
+   cd <project-directory>
+   ```
 
-### Prerequisites
-To build and run this project, you'll need the following installed:
-- A **C++ compiler** that supports C++11 (e.g., `g++`)
-- **Make** (for building the project)
-- **Telnet** (or any other client to communicate with the server)
+2. **Build the Project**:
+   Use `make` to compile the project:
+   ```bash
+   make
+   ```
 
-### Building the Project
+3. **Run the Server**:
+   Start the server with the following command:
+   ```bash
+   ./server
+   ```
 
-1. Clone the repository to your local machine:
+4. **Connect with Clients**:
+   Clients can connect to the server using `telnet`:
+   ```bash
+   telnet localhost 8080
+   ```
 
-    ```bash
-    git clone <repository-url>
-    cd <project-directory>
-    ```
+## Commands
 
-2. Build the project using `make`:
+All commands are case-sensitive and should be written in lowercase.
 
-    ```bash
-    make
-    ```
+### 1. `create <size>`
+Creates a graph with the specified number of vertices.
+- **Example**:
+  ```bash
+  create 5
+  ```
+  Response: 
+  ```
+  Graph created with 5 vertices.
+  ```
 
-### Running the Server
+### 2. `add <u> <v> <weight>`
+Adds an edge between vertex `u` and vertex `v` with the specified weight.
+- **Example**:
+  ```bash
+  add 0 1 10
+  ```
+  Response: 
+  ```
+  Edge added: (0, 1) with weight 10
+  ```
 
-Once the project is built, run the server:
+### 3. `remove <u> <v>`
+Removes the edge between vertex `u` and vertex `v`.
+- **Example**:
+  ```bash
+  remove 0 1
+  ```
+  Response: 
+  ```
+  Edge removed: (0, 1)
+  ```
 
-```bash
-./server
-```
+### 4. `solve <algorithm>`
+Computes the MST using the specified algorithm (`prim` or `kruskal`).
+- **Example**:
+  ```bash
+  solve prim
+  ```
+  Response:
+  ```
+  Following are the edges in the constructed MST:
+  0 -- 1 == 10
+  0 -- 2 == 5
+  Minimum Cost Spanning Tree: 15
+  ```
 
-The server will listen on port 8080 by default.
+### 5. `longest distance`
+Returns the longest distance between any two vertices in the MST.
+- **Example**:
+  ```bash
+  longest distance
+  ```
+  Response:
+  ```
+  Longest distance in MST: 25
+  ```
 
-### Running the Client
+### 6. `avg distance`
+Returns the average distance between any two vertices in the MST.
+- **Example**:
+  ```bash
+  avg distance
+  ```
+  Response:
+  ```
+  Average distance in MST: 12.5
+  ```
 
-You can use `telnet` to connect to the server and send commands. In a separate terminal, run:
+### 7. `shortest distance <u> <v>`
+Returns the shortest distance between vertex `u` and vertex `v` in the MST.
+- **Example**:
+  ```bash
+  shortest distance 0 2
+  ```
+  Response:
+  ```
+  Shortest distance between 0 and 2 in MST: 10
+  ```
 
-```bash
-telnet localhost 8080
-```
+### 8. `shutdown`
+Shuts down the current client connection. For shutting down the entire server, type `shutdown` in the server terminal.
+- **Example**:
+  ```bash
+  shutdown
+  ```
+  Response:
+  ```
+  Shutting down this client.
+  ```
 
-You can now send commands to interact with the server.
+## Server Shutdown
 
-### Available Commands
+To gracefully shut down the server, type `shutdown` in the server's terminal. This will terminate all client connections and stop the server.
+- **Example**:
+  ```bash
+  shutdown
+  ```
+  Response in the server terminal:
+  ```
+  Server shutting down...
+  ```
 
-#### 1. `CREATE <number_of_vertices>`
-Create a graph with the specified number of vertices.
+## Architecture
 
-Example:
-```
-CREATE 5
-```
+- **Leader-Follower Pattern**: Multiple threads act as leaders and process client connections.
+- **ActiveObject Pattern**: Tasks are enqueued and processed asynchronously to avoid blocking.
+- **Pipeline**: Client commands are handled in a pipeline, allowing easy extension of features.
 
-#### 2. `ADD <u> <v> <weight>`
-Add an edge between vertex `u` and vertex `v` with a specific weight.
+## Future Enhancements
 
-Example:
-```
-ADD 0 1 10
-```
+- **Command History**: Support for clients to view previously executed commands.
+- **Error Logging**: A more robust logging system for error tracking and debugging.
 
-#### 3. `REMOVE <u> <v>`
-Remove the edge between vertex `u` and vertex `v`.
+## License
 
-Example:
-```
-REMOVE
+This project is open-source and available under the [MIT License](LICENSE).
+
+---
+
+Let me know if you need further adjustments or clarifications!
