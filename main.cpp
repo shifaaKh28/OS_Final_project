@@ -46,6 +46,7 @@ void handleClient(int clientSocket)
 {
     char buffer[BUFFER_SIZE] = {0};
     std::unique_ptr<Graph> graph;
+    std::unique_ptr<MSTTree> mst;  // Store the MST after solving
 
     // Add the client socket to the set of active clients
     {
@@ -71,7 +72,7 @@ void handleClient(int clientSocket)
 
         Pipeline pipeline;
 
-        if (command == "CREATE")
+        if (command == "create")
         {
             pipeline.addStep([&]() {
                 int size;
@@ -81,7 +82,7 @@ void handleClient(int clientSocket)
                 send(clientSocket, response.c_str(), response.size(), 0);
             });
         }
-        else if (command == "ADD")
+        else if (command == "add")
         {
             pipeline.addStep([&]() {
                 if (!graph)
@@ -97,7 +98,7 @@ void handleClient(int clientSocket)
                 send(clientSocket, response.c_str(), response.size(), 0);
             });
         }
-        else if (command == "REMOVE")
+        else if (command == "remove")
         {
             pipeline.addStep([&]() {
                 if (!graph)
@@ -113,67 +114,110 @@ void handleClient(int clientSocket)
                 send(clientSocket, response.c_str(), response.size(), 0);
             });
         }
-    else if (command == "SOLVE")
-{
+        else if (command == "solve")
+        {
+            pipeline.addStep([&]() {
+                if (!graph)
+                {
+                    std::string response = "Graph is not created. Use CREATE command first.\n";
+                    send(clientSocket, response.c_str(), response.size(), 0);
+                    return;
+                }
+
+                std::string algorithm;
+                ss >> algorithm;
+                MSTAlgo* algo = nullptr;
+
+                if (algorithm == "prim")
+                {
+                    algo = MSTFactory::createMSTAlgorithm(MSTFactory::PRIM);
+                }
+                else if (algorithm == "kruskal")
+                {
+                    algo = MSTFactory::createMSTAlgorithm(MSTFactory::KRUSKAL);
+                }
+
+                if (algo)
+                {
+                    mst = std::make_unique<MSTTree>(algo->computeMST(*graph));
+
+                    // Construct the response string to send to the client
+                    std::vector<std::pair<int, int>> mstEdges = mst->getEdges();
+                    std::string response = "Following are the edges in the constructed MST:\n";
+                    for (const auto& edge : mstEdges) {
+                        int u = edge.first;
+                        int v = edge.second;
+                        int weight = graph->getAdjacencyMatrix()[u][v];
+                        response += std::to_string(u) + " -- " + std::to_string(v) + " == " + std::to_string(weight) + "\n";
+                    }
+
+                    // Append the total weight to the response
+                    int totalWeight = mst->getTotalWeight();
+                    response += "Minimum Cost Spanning Tree: " + std::to_string(totalWeight) + "\n";
+
+                    // Send the response to the client
+                    send(clientSocket, response.c_str(), response.size(), 0);
+
+                    // Cleanup
+                    delete algo;
+                }
+                else
+                {
+                    std::string response = "Unknown algorithm requested.\n";
+                    send(clientSocket, response.c_str(), response.size(), 0);
+                }
+            });
+        }
+        else if (command == "longest distance") {
+            pipeline.addStep([&]() {
+                if (mst) {
+                    int longestDistance = mst->getLongestDistance();
+                    std::string response = "Longest distance in MST: " + std::to_string(longestDistance) + "\n";
+                    send(clientSocket, response.c_str(), response.size(), 0);
+                } else {
+                    std::string response = "MST not computed yet. Use SOLVE command first.\n";
+                    send(clientSocket, response.c_str(), response.size(), 0);
+                }
+            });
+        }
+        else if (command == "avg distance") {
+            pipeline.addStep([&]() {
+                if (mst) {
+                    double averageDistance = mst->getAverageDistance();
+                    std::string response = "Average distance in MST: " + std::to_string(averageDistance) + "\n";
+                    send(clientSocket, response.c_str(), response.size(), 0);
+                } else {
+                    std::string response = "MST not computed yet. Use SOLVE command first.\n";
+                    send(clientSocket, response.c_str(), response.size(), 0);
+                }
+            });
+        }
+       else if (command == "shortest distance") {
     pipeline.addStep([&]() {
-        if (!graph)
-        {
-            std::string response = "Graph is not created. Use CREATE command first.\n";
-            send(clientSocket, response.c_str(), response.size(), 0);
-            return;
-        }
+        if (graph) {
+            int u, v;
+            ss >> u >> v;
 
-        std::string algorithm;
-        ss >> algorithm;
-        MSTAlgo* algo = nullptr;
-
-        if (algorithm == "PRIM")
-        {
-            algo = MSTFactory::createMSTAlgorithm(MSTFactory::PRIM);
-        }
-        else if (algorithm == "KRUSKAL")
-        {
-            algo = MSTFactory::createMSTAlgorithm(MSTFactory::KRUSKAL);
-        }
-
-        if (algo)
-        {
-            MSTTree mst = algo->computeMST(*graph);
-
-            // Construct the response string to send to the client and only
-            std::vector<std::pair<int, int>> mstEdges = mst.getEdges();
-            std::string response = "Following are the edges in the constructed MST:\n";
-            for (const auto& edge : mstEdges) {
-                int u = edge.first;
-                int v = edge.second;
-                int weight = graph->getAdjacencyMatrix()[u][v];
-                response += std::to_string(u) + " -- " + std::to_string(v) + " == " + std::to_string(weight) + "\n";
+            int shortestDistance = mst->getShortestDistance(u, v);
+            std::string response;
+            if (shortestDistance == -1) {
+                response = "No path exists between vertices " + std::to_string(u) + " and " + std::to_string(v) + ".\n";
+            } else {
+                response = "Shortest distance between " + std::to_string(u) + " and " + std::to_string(v) + " in MST: " + std::to_string(shortestDistance) + "\n";
             }
-
-            // Append the total weight to the response
-            int totalWeight = mst.getTotalWeight();
-            response += "Minimum Cost Spanning Tree: " + std::to_string(totalWeight) + "\n";
-
-            // Send the response to the client
             send(clientSocket, response.c_str(), response.size(), 0);
-
-            // Cleanup
-            delete algo;
-        }
-        else
-        {
-            std::string response = "Unknown algorithm requested.\n";
+        } else {
+            std::string response = "MST not computed yet. Use SOLVE command first.\n";
             send(clientSocket, response.c_str(), response.size(), 0);
         }
     });
 }
-
-  else if (command == "SHUTDOWN")
+        else if (command == "shutdown")
         {
             pipeline.addStep([&]() {
                 std::string response = "Shutting down this client.\n";
                 send(clientSocket, response.c_str(), response.size(), 0);
-                std::cout << "Client initiated shutdown command." << std::endl;
+                std::cout << "Client initiated shutdown command.\n";
 
                 // Close only this client connection
                 close(clientSocket);  // Close the client socket to end the connection
@@ -207,6 +251,7 @@ void handleClient(int clientSocket)
     close(clientSocket);  // Close the client socket connection after processing
     std::cout << "Client socket closed.\n";
 }
+
 
 void runServerWithLeaderFollower()
 {
