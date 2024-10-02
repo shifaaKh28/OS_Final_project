@@ -4,11 +4,13 @@
 #include <limits>
 
 // Constructor to initialize the MST tree from a graph and the MST edges
-MSTTree::MSTTree(const Graph& graph, const std::vector<std::pair<int, int>>& mstEdges)
-    : mstGraph(graph.getNumberOfVertices()), totalWeight(0), edges(mstEdges) {
-    
+MSTTree::MSTTree(const Graph &graph, const std::vector<std::pair<int, int>> &mstEdges)
+    : mstGraph(graph.getNumberOfVertices()), totalWeight(0), edges(mstEdges)
+{
+
     // Copy only the edges in the MST into the MST graph
-    for (const auto& edge : mstEdges) {
+    for (const auto &edge : mstEdges)
+    {
         int u = edge.first;
         int v = edge.second;
         int weight = graph.getAdjacencyMatrix()[u][v];
@@ -18,17 +20,22 @@ MSTTree::MSTTree(const Graph& graph, const std::vector<std::pair<int, int>>& mst
 }
 
 // Function to calculate the total weight of the MST
-int MSTTree::getTotalWeight() const {
+int MSTTree::getTotalWeight() const
+{
     return totalWeight;
 }
 
 // Function to calculate the longest distance between two vertices in the MST
-int MSTTree::getLongestDistance() const {
+int MSTTree::getLongestDistance() const
+{
     auto dist = floydWarshall();
     int longest = 0;
-    for (int i = 0; i < mstGraph.getNumberOfVertices(); ++i) {
-        for (int j = 0; j < mstGraph.getNumberOfVertices(); ++j) {
-            if (dist[i][j] != std::numeric_limits<int>::max()) {
+    for (int i = 0; i < mstGraph.getNumberOfVertices(); ++i)
+    {
+        for (int j = 0; j < mstGraph.getNumberOfVertices(); ++j)
+        {
+            if (dist[i][j] != std::numeric_limits<int>::max())
+            {
                 longest = std::max(longest, dist[i][j]);
             }
         }
@@ -37,14 +44,18 @@ int MSTTree::getLongestDistance() const {
 }
 
 // Function to calculate the average distance between any two vertices in the MST
-double MSTTree::getAverageDistance() const {
+double MSTTree::getAverageDistance() const
+{
     auto dist = floydWarshall();
     double totalDistance = 0;
     int count = 0;
 
-    for (int i = 0; i < mstGraph.getNumberOfVertices(); ++i) {
-        for (int j = i; j < mstGraph.getNumberOfVertices(); ++j) {
-            if (dist[i][j] != std::numeric_limits<int>::max()) {
+    for (int i = 0; i < mstGraph.getNumberOfVertices(); ++i)
+    {
+        for (int j = i; j < mstGraph.getNumberOfVertices(); ++j)
+        {
+            if (dist[i][j] != std::numeric_limits<int>::max())
+            {
                 totalDistance += dist[i][j];
                 count++;
             }
@@ -55,15 +66,18 @@ double MSTTree::getAverageDistance() const {
 }
 
 // Function to find the shortest distance between two vertices in the MST (i ≠ j)
-int MSTTree::getShortestDistance(int u, int v) const {
+int MSTTree::getShortestDistance(int u, int v) const
+{
     // Check that u and v are valid indices
     int n = mstGraph.getNumberOfVertices();
-    if (u < 0 || v < 0 || u >= n || v >= n) {
+    if (u < 0 || v < 0 || u >= n || v >= n)
+    {
         std::cerr << "Error: Invalid vertex index. u: " << u << ", v: " << v << "\n";
         return -1; // Return error if invalid vertices
     }
 
-    if (u == v) {
+    if (u == v)
+    {
         std::cout << "Error: i == j, please provide distinct vertices.\n";
         return -1; // Return -1 to indicate an error
     }
@@ -72,7 +86,8 @@ int MSTTree::getShortestDistance(int u, int v) const {
     auto dist = floydWarshall();
 
     // Check if there is no path between u and v in the MST (i.e., distance is infinity)
-    if (dist[u][v] == std::numeric_limits<int>::max()) {
+    if (dist[u][v] == std::numeric_limits<int>::max())
+    {
         std::cout << "No path exists between vertices " << u << " and " << v << " in the MST." << std::endl;
         return -1; // Return -1 or another value to indicate no path exists
     }
@@ -80,18 +95,20 @@ int MSTTree::getShortestDistance(int u, int v) const {
     return dist[u][v]; // Return the shortest distance between u and v
 }
 
-
 // Function to print the MST tree (for debugging)
-void MSTTree::printMST() const {
+void MSTTree::printMST() const
+{
     mstGraph.printAdjacencyMatrix();
 }
 
 // Helper function to calculate all-pairs shortest path using Floyd-Warshall algorithm on the MST
-std::vector<std::vector<int>> MSTTree::floydWarshall() const {
+std::vector<std::vector<int>> MSTTree::floydWarshall() const
+{
     int n = mstGraph.getNumberOfVertices();
-    
+
     // Ensure we have a valid graph
-    if (n == 0) {
+    if (n == 0)
+    {
         std::cerr << "Error: Graph has no vertices.\n";
         return std::vector<std::vector<int>>(); // Return empty result
     }
@@ -100,12 +117,14 @@ std::vector<std::vector<int>> MSTTree::floydWarshall() const {
     std::vector<std::vector<int>> dist(n, std::vector<int>(n, std::numeric_limits<int>::max()));
 
     // Initialize distances: If there's an edge in the MST, set the distance to the weight of that edge
-    for (const auto& edge : edges) {
+    for (const auto &edge : edges)
+    {
         int u = edge.first;
         int v = edge.second;
 
         // Check that u and v are valid indices
-        if (u < 0 || v < 0 || u >= n || v >= n) {
+        if (u < 0 || v < 0 || u >= n || v >= n)
+        {
             std::cerr << "Error: Invalid edge between vertices " << u << " and " << v << ".\n";
             continue;
         }
@@ -116,15 +135,20 @@ std::vector<std::vector<int>> MSTTree::floydWarshall() const {
     }
 
     // The distance from any vertex to itself is 0
-    for (int i = 0; i < n; ++i) {
+    for (int i = 0; i < n; ++i)
+    {
         dist[i][i] = 0;
     }
 
     // Floyd-Warshall algorithm to compute shortest paths in the MST
-    for (int k = 0; k < n; ++k) {
-        for (int i = 0; i < n; ++i) {
-            for (int j = 0; j < n; ++j) {
-                if (dist[i][k] != std::numeric_limits<int>::max() && dist[k][j] != std::numeric_limits<int>::max()) {
+    for (int k = 0; k < n; ++k)
+    {
+        for (int i = 0; i < n; ++i)
+        {
+            for (int j = 0; j < n; ++j)
+            {
+                if (dist[i][k] != std::numeric_limits<int>::max() && dist[k][j] != std::numeric_limits<int>::max())
+                {
                     dist[i][j] = std::min(dist[i][j], dist[i][k] + dist[k][j]);
                 }
             }
@@ -134,8 +158,8 @@ std::vector<std::vector<int>> MSTTree::floydWarshall() const {
     return dist;
 }
 
-
 // Function to return the edges in the MST
-std::vector<std::pair<int, int>> MSTTree::getEdges() const {
+std::vector<std::pair<int, int>> MSTTree::getEdges() const
+{
     return edges;
 }
