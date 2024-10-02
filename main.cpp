@@ -8,7 +8,7 @@
 #include <queue>
 #include <condition_variable>
 #include <mutex>
-#include <set>          // To track active clients
+#include <set> // To track active clients
 #include "MST_algo.hpp"
 #include "graph.hpp"
 #include "Pipeline.hpp"
@@ -31,9 +31,11 @@ std::atomic<int> activeClients(0);
 int serverFd;
 
 // Function to close all active client connections
-void closeAllClients() {
+void closeAllClients()
+{
     std::lock_guard<std::mutex> lock(clientSocketMutex);
-    for (int clientSocket : activeClientSockets) {
+    for (int clientSocket : activeClientSockets)
+    {
         shutdown(clientSocket, SHUT_RDWR); // Disable read/write operations on the client socket
         close(clientSocket);               // Close the client socket
         std::cout << "Closed client socket: " << clientSocket << std::endl;
@@ -46,7 +48,7 @@ void handleClient(int clientSocket)
 {
     char buffer[BUFFER_SIZE] = {0};
     std::unique_ptr<Graph> graph;
-    std::unique_ptr<MSTTree> mst;  // Store the MST after solving
+    std::unique_ptr<MSTTree> mst; // Store the MST after solving
 
     // Add the client socket to the set of active clients
     {
@@ -74,17 +76,18 @@ void handleClient(int clientSocket)
 
         if (command == "create")
         {
-            pipeline.addStep([&]() {
+            pipeline.addStep([&]()
+                             {
                 int size;
                 ss >> size;
                 graph = std::make_unique<Graph>(size);
                 std::string response = "Graph created with " + std::to_string(size) + " vertices.\n";
-                send(clientSocket, response.c_str(), response.size(), 0);
-            });
+                send(clientSocket, response.c_str(), response.size(), 0); });
         }
         else if (command == "add")
         {
-            pipeline.addStep([&]() {
+            pipeline.addStep([&]()
+                             {
                 if (!graph)
                 {
                     std::string response = "Graph is not created. Use CREATE command first.\n";
@@ -95,12 +98,12 @@ void handleClient(int clientSocket)
                 ss >> u >> v >> weight;
                 graph->addEdge(u, v, weight);
                 std::string response = "Edge added: (" + std::to_string(u) + ", " + std::to_string(v) + ") with weight " + std::to_string(weight) + "\n";
-                send(clientSocket, response.c_str(), response.size(), 0);
-            });
+                send(clientSocket, response.c_str(), response.size(), 0); });
         }
         else if (command == "remove")
         {
-            pipeline.addStep([&]() {
+            pipeline.addStep([&]()
+                             {
                 if (!graph)
                 {
                     std::string response = "Graph is not created. Use CREATE command first.\n";
@@ -111,12 +114,12 @@ void handleClient(int clientSocket)
                 ss >> u >> v;
                 graph->removeEdge(u, v);
                 std::string response = "Edge removed: (" + std::to_string(u) + ", " + std::to_string(v) + ")\n";
-                send(clientSocket, response.c_str(), response.size(), 0);
-            });
+                send(clientSocket, response.c_str(), response.size(), 0); });
         }
         else if (command == "solve")
         {
-            pipeline.addStep([&]() {
+            pipeline.addStep([&]()
+                             {
                 if (!graph)
                 {
                     std::string response = "Graph is not created. Use CREATE command first.\n";
@@ -165,11 +168,12 @@ void handleClient(int clientSocket)
                 {
                     std::string response = "Unknown algorithm requested.\n";
                     send(clientSocket, response.c_str(), response.size(), 0);
-                }
-            });
+                } });
         }
-        else if (command == "longest distance") {
-            pipeline.addStep([&]() {
+        else if (command == "longest distance")
+        {
+            pipeline.addStep([&]()
+                             {
                 if (mst) {
                     int longestDistance = mst->getLongestDistance();
                     std::string response = "Longest distance in MST: " + std::to_string(longestDistance) + "\n";
@@ -177,11 +181,12 @@ void handleClient(int clientSocket)
                 } else {
                     std::string response = "MST not computed yet. Use SOLVE command first.\n";
                     send(clientSocket, response.c_str(), response.size(), 0);
-                }
-            });
+                } });
         }
-        else if (command == "avg distance") {
-            pipeline.addStep([&]() {
+        else if (command == "avg distance")
+        {
+            pipeline.addStep([&]()
+                             {
                 if (mst) {
                     double averageDistance = mst->getAverageDistance();
                     std::string response = "Average distance in MST: " + std::to_string(averageDistance) + "\n";
@@ -189,11 +194,12 @@ void handleClient(int clientSocket)
                 } else {
                     std::string response = "MST not computed yet. Use SOLVE command first.\n";
                     send(clientSocket, response.c_str(), response.size(), 0);
-                }
-            });
+                } });
         }
-       else if (command == "shortest distance") {
-    pipeline.addStep([&]() {
+        else if (command == "shortest distance")
+        {
+            pipeline.addStep([&]()
+                             {
         if (graph) {
             int u, v;
             ss >> u >> v;
@@ -209,33 +215,33 @@ void handleClient(int clientSocket)
         } else {
             std::string response = "MST not computed yet. Use SOLVE command first.\n";
             send(clientSocket, response.c_str(), response.size(), 0);
+        } });
         }
-    });
-}
         else if (command == "shutdown")
         {
-            pipeline.addStep([&]() {
-                std::string response = "Shutting down this client.\n";
-                send(clientSocket, response.c_str(), response.size(), 0);
-                std::cout << "Client initiated shutdown command.\n";
+            pipeline.addStep([&]()
+                             {
+                                 std::string response = "Shutting down this client.\n";
+                                 send(clientSocket, response.c_str(), response.size(), 0);
+                                 std::cout << "Client initiated shutdown command.\n";
 
-                // Close only this client connection
-                close(clientSocket);  // Close the client socket to end the connection
-                {
-                    std::lock_guard<std::mutex> lock(clientSocketMutex);
-                    activeClientSockets.erase(clientSocket);  // Remove this client from the active clients set
-                }
+                                 // Close only this client connection
+                                 close(clientSocket); // Close the client socket to end the connection
+                                 {
+                                     std::lock_guard<std::mutex> lock(clientSocketMutex);
+                                     activeClientSockets.erase(clientSocket); // Remove this client from the active clients set
+                                 }
 
-                activeClients--; // Decrement active clients counter
-                return;  // Exit the loop for this client only
-            });
+                                 activeClients--; // Decrement active clients counter
+                                 return;          // Exit the loop for this client only
+                             });
         }
         else
         {
-            pipeline.addStep([&]() {
+            pipeline.addStep([&]()
+                             {
                 std::string response = "Unknown command.\n";
-                send(clientSocket, response.c_str(), response.size(), 0);
-            });
+                send(clientSocket, response.c_str(), response.size(), 0); });
         }
 
         // Execute the pipeline for the current command
@@ -248,10 +254,9 @@ void handleClient(int clientSocket)
         activeClientSockets.erase(clientSocket);
     }
 
-    close(clientSocket);  // Close the client socket connection after processing
+    close(clientSocket); // Close the client socket connection after processing
     std::cout << "Client socket closed.\n";
 }
-
 
 void runServerWithLeaderFollower()
 {
@@ -298,7 +303,7 @@ void runServerWithLeaderFollower()
     for (int i = 0; i < THREAD_POOL_SIZE; ++i)
     {
         threadPool.emplace_back([&]()
-        {
+                                {
             while (serverRunning)
             {
                 int clientSocket;
@@ -324,13 +329,12 @@ void runServerWithLeaderFollower()
                 activeObject.enqueueTask([clientSocket]() {
                     handleClient(clientSocket);
                 });
-            }
-        });
+            } });
     }
 
     // Separate thread to listen for shutdown command from the server console
     std::thread shutdownThread([&]()
-    {
+                               {
         std::string input;
         while (serverRunning)
         {
@@ -349,8 +353,7 @@ void runServerWithLeaderFollower()
                 leaderCV.notify_all();  // Notify all waiting threads to stop
                 break;
             }
-        }
-    });
+        } });
 
     // Main loop to accept clients
     while (serverRunning)
@@ -380,14 +383,12 @@ void runServerWithLeaderFollower()
     {
         if (th.joinable())
         {
-            th.join();  // Wait for all threads to finish before exiting
+            th.join(); // Wait for all threads to finish before exiting
         }
     }
 
     std::cout << "Server has shut down immediately.\n";
 }
-
-
 
 int main()
 {
