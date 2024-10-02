@@ -154,12 +154,19 @@ void handleClient(int clientSocket)
         else if (command == "SHUTDOWN")
         {
             pipeline.addStep([&]() {
-                std::string response = "Server shutting down.\n";
+                std::string response = "Shutting down this client.\n";
                 send(clientSocket, response.c_str(), response.size(), 0);
                 std::cout << "Client initiated shutdown command." << std::endl;
-                serverRunning = false;  // Signal to stop the server
-                close(serverFd);  // Close the server socket to unblock accept()
-                closeAllClients();  // Close all client connections
+
+                // Close only this client connection
+                close(clientSocket);  // Close the client socket to end the connection
+                {
+                    std::lock_guard<std::mutex> lock(clientSocketMutex);
+                    activeClientSockets.erase(clientSocket);  // Remove this client from the active clients set
+                }
+
+                activeClients--; // Decrement active clients counter
+                return;  // Exit the loop for this client only
             });
         }
         else
@@ -174,15 +181,13 @@ void handleClient(int clientSocket)
         pipeline.execute();
     }
 
-    activeClients--; // Decrement active clients counter
-
-    // Remove the client socket from the set of active clients
+    // Ensure the client is removed and socket closed if not done earlier
     {
         std::lock_guard<std::mutex> lock(clientSocketMutex);
         activeClientSockets.erase(clientSocket);
     }
 
-    close(clientSocket); // Close the client socket connection after processing
+    close(clientSocket);  // Close the client socket connection after processing
     std::cout << "Client socket closed.\n";
 }
 
