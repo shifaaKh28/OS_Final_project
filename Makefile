@@ -1,7 +1,8 @@
-# Define the C++ compiler and flags
+# Contirbutors: Wasim Shebalny, Shifaa Khatib.
+# Define the C++ compiler and the flags
 CXX = g++
 CXXFLAGS = -Wall -Wextra -std=c++14 -g -pthread -fprofile-arcs -ftest-coverage
-LDFLAGS = -lgcov -pthread
+LDFLAGS = -lgcov -fprofile-arcs -ftest-coverage -lpthread
 
 # Define the target executable
 TARGET = server
@@ -10,38 +11,36 @@ TARGET = server
 SRCS = main.cpp MST_algo.cpp graph.cpp MST_tree.cpp Activeobject.cpp Pipeline.cpp
 OBJS = $(SRCS:.cpp=.o)
 
-# Default target to compile the code
+# Default target
 all: $(TARGET)
 
 # Rule to link the executable
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $(TARGET) $(OBJS) $(LDFLAGS)
+	$(CXX) -o $(TARGET) $(OBJS) $(LDFLAGS)
 
-# Rule to compile each .cpp file into an object file
+# Rule to compile source files into object files
 %.o: %.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Run the server
-run: $(TARGET)
-	./$(TARGET)
+# Run Valgrind memory check
+valgrind: $(TARGET)
+	valgrind --leak-check=full --track-origins=yes --log-file=valgrind_report.txt ./$(TARGET)
 
 # Code Coverage target
 coverage: all
-	./$(TARGET) &
-	sleep 3
-	pkill $(TARGET) # This stops the server after 3 seconds to simulate running
-	gcov -o . $(SRCS) > coverage.txt 2>&1
-	lcov --capture --directory . --output-file coverage.info
-	genhtml coverage.info --output-directory coverage_report
+	./$(TARGET)
+	gcov -o . $(SRCS) > tst.txt 2>&1
+	lcov --capture --directory . --output-file coverage.info >> tst.txt 2>&1
+	genhtml coverage.info --output-directory out >> tst.txt 2>&1
 
-# Clean the coverage and object files
+# Clean intermediate coverage files
 coverage_clean:
-	rm -f *.gcno *.gcda *.gcov coverage.txt coverage.info
-	rm -rf coverage_report
+	rm -f *.gcno *.gcda *.gcov
 
-# Clean the project build and intermediate files
+# Clean up all build files, intermediate files, and coverage files
 clean: coverage_clean
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET) gmon.out callgrind.out coverage.info
+	rm -rf out valgrind_report.txt gprof_report.txt
 
-# Phony targets to avoid conflicts
-.PHONY: all run clean coverage coverage_clean
+# Phony targets
+.PHONY: all clean coverage profile valgrind coverage_clean
