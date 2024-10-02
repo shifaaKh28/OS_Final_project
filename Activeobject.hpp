@@ -8,7 +8,8 @@
 #include <mutex>
 #include <condition_variable>
 
-class ActiveObject {
+class ActiveObject
+{
 public:
     // Constructor to initialize the thread pool with a given number of threads
     ActiveObject(int numThreads);
@@ -35,7 +36,7 @@ private:
     // Thread pool
     std::vector<std::thread> workers;
 
-    // Task queue   
+    // Task queue
     std::queue<std::function<void()>> tasks;
 
     // Synchronization
@@ -43,8 +44,8 @@ private:
     std::condition_variable cv;
 
     // Flags to control the running state and task cancelation
-    bool running;            // Indicates whether the ActiveObject is still running
-    bool cancelingTasks;      // Indicates whether tasks are being canceled
+    bool running;        // Indicates whether the ActiveObject is still running
+    bool cancelingTasks; // Indicates whether tasks are being canceled
 };
 
-#endif  // ACTIVEOBJECT_HPP
+#endif // ACTIVEOBJECT_HPP
