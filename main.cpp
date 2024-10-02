@@ -140,7 +140,7 @@ void handleClient(int clientSocket)
         {
             MSTTree mst = algo->computeMST(*graph);
 
-            // Construct the response string to send to the client
+            // Construct the response string to send to the client and only
             std::vector<std::pair<int, int>> mstEdges = mst.getEdges();
             std::string response = "Following are the edges in the constructed MST:\n";
             for (const auto& edge : mstEdges) {
