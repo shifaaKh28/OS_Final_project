@@ -93,3 +93,8 @@ std::vector<std::vector<int>> MSTTree::floydWarshall() const {
 
     return dist;
 }
+
+// Function to return the edges in the MST
+std::vector<std::pair<int, int>> MSTTree::getEdges() const {
+    return edges;
+}
