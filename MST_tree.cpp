@@ -54,33 +54,73 @@ double MSTTree::getAverageDistance() const {
     return (count == 0) ? 0 : totalDistance / count;
 }
 
-// Function to find the shortest distance between two vertices in the MST
+// Function to find the shortest distance between two vertices in the MST (i ≠ j)
 int MSTTree::getShortestDistance(int u, int v) const {
+    // Check that u and v are valid indices
+    int n = mstGraph.getNumberOfVertices();
+    if (u < 0 || v < 0 || u >= n || v >= n) {
+        std::cerr << "Error: Invalid vertex index. u: " << u << ", v: " << v << "\n";
+        return -1; // Return error if invalid vertices
+    }
+
+    if (u == v) {
+        std::cout << "Error: i == j, please provide distinct vertices.\n";
+        return -1; // Return -1 to indicate an error
+    }
+
+    // Run Floyd-Warshall algorithm on the MST adjacency matrix
     auto dist = floydWarshall();
-    return dist[u][v];
+
+    // Check if there is no path between u and v in the MST (i.e., distance is infinity)
+    if (dist[u][v] == std::numeric_limits<int>::max()) {
+        std::cout << "No path exists between vertices " << u << " and " << v << " in the MST." << std::endl;
+        return -1; // Return -1 or another value to indicate no path exists
+    }
+
+    return dist[u][v]; // Return the shortest distance between u and v
 }
+
 
 // Function to print the MST tree (for debugging)
 void MSTTree::printMST() const {
     mstGraph.printAdjacencyMatrix();
 }
 
-// Helper function to calculate all-pairs shortest path using Floyd-Warshall algorithm
+// Helper function to calculate all-pairs shortest path using Floyd-Warshall algorithm on the MST
 std::vector<std::vector<int>> MSTTree::floydWarshall() const {
     int n = mstGraph.getNumberOfVertices();
-    auto adjMat = mstGraph.getAdjacencyMatrix();
-    std::vector<std::vector<int>> dist = adjMat;
-
-    // Initialize distances: if there's no edge, set to infinity
-    for (int i = 0; i < n; ++i) {
-        for (int j = 0; j < n; ++j) {
-            if (i != j && dist[i][j] == 0) {
-                dist[i][j] = std::numeric_limits<int>::max();
-            }
-        }
+    
+    // Ensure we have a valid graph
+    if (n == 0) {
+        std::cerr << "Error: Graph has no vertices.\n";
+        return std::vector<std::vector<int>>(); // Return empty result
     }
 
-    // Floyd-Warshall algorithm
+    auto adjMat = mstGraph.getAdjacencyMatrix();
+    std::vector<std::vector<int>> dist(n, std::vector<int>(n, std::numeric_limits<int>::max()));
+
+    // Initialize distances: If there's an edge in the MST, set the distance to the weight of that edge
+    for (const auto& edge : edges) {
+        int u = edge.first;
+        int v = edge.second;
+
+        // Check that u and v are valid indices
+        if (u < 0 || v < 0 || u >= n || v >= n) {
+            std::cerr << "Error: Invalid edge between vertices " << u << " and " << v << ".\n";
+            continue;
+        }
+
+        int weight = adjMat[u][v];
+        dist[u][v] = weight;
+        dist[v][u] = weight; // Undirected, so make it symmetric
+    }
+
+    // The distance from any vertex to itself is 0
+    for (int i = 0; i < n; ++i) {
+        dist[i][i] = 0;
+    }
+
+    // Floyd-Warshall algorithm to compute shortest paths in the MST
     for (int k = 0; k < n; ++k) {
         for (int i = 0; i < n; ++i) {
             for (int j = 0; j < n; ++j) {
@@ -93,6 +133,7 @@ std::vector<std::vector<int>> MSTTree::floydWarshall() const {
 
     return dist;
 }
+
 
 // Function to return the edges in the MST
 std::vector<std::pair<int, int>> MSTTree::getEdges() const {
