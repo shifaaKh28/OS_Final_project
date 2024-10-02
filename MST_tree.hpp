@@ -34,6 +34,8 @@ public:
 
     // Function to print the MST tree for debugging
     void printMST() const;
+
+    std::vector<std::pair<int, int>> getEdges() const;  // <--- Add this method
 };
 
 #endif
