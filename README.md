@@ -169,6 +169,3 @@ To gracefully shut down the server, type `shutdown` in the server's terminal. Th
 
 This project is open-source and available under the [MIT License](LICENSE).
 
----
-
-Let me know if you need further adjustments or clarifications!
