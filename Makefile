@@ -40,7 +40,7 @@ coverage_clean:
 # Clean up all build files, intermediate files, and coverage files
 clean: coverage_clean
 	rm -f $(OBJS) $(TARGET) gmon.out callgrind.out coverage.info
-	rm -rf out valgrind_report.txt gprof_report.txt
+	rm -rf out valgrind_report.txt gprof_report.txt tst.txt
 
 # Phony targets
 .PHONY: all clean coverage profile valgrind coverage_clean
