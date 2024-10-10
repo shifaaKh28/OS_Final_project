@@ -20,8 +20,6 @@ public:
     // Method to enqueue tasks into the task queue
     void enqueueTask(std::function<void()> task);
 
-    // Method to cancel all pending tasks (before shutdown)
-    void cancelAllTasks();
 
     // Method to gracefully shut down all worker threads
     void shutdown();
@@ -30,8 +28,6 @@ private:
     // Internal worker thread function that processes tasks
     void workerThread();
 
-    // Method to clear all pending tasks from the task queue
-    void clearPendingTasks();
 
     // Thread pool
     std::vector<std::thread> workers;
