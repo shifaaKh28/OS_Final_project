@@ -58,23 +58,6 @@ void ActiveObject::workerThread()
     }
 }
 
-// Cancel all pending tasks
-void ActiveObject::cancelAllTasks()
-{
-    std::unique_lock<std::mutex> lock(mtx);
-    cancelingTasks = true;
-    clearPendingTasks(); // Clear the task queue
-    cv.notify_all();     // Wake up all worker threads to ensure they exit if they are waiting
-}
-
-// Clear the task queue (called when canceling tasks)
-void ActiveObject::clearPendingTasks()
-{
-    while (!tasks.empty())
-    {
-        tasks.pop(); // Discard all tasks
-    }
-}
 
 // Shut down all worker threads gracefully
 void ActiveObject::shutdown()
