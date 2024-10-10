@@ -264,7 +264,7 @@ void handleClient(int clientSocket)
 }
 
 // Main server function using the Leader-Follower pattern
-void runServerWithLeaderFollower()
+void runServer()
 {
     struct sockaddr_in address; // Structure for socket address
     int opt = 1; // Option for setting socket options
@@ -399,6 +399,6 @@ void runServerWithLeaderFollower()
 // Main function to start the server
 int main()
 {
-    runServerWithLeaderFollower(); // Start the server using the Leader-Follower pattern
+    runServer(); // Start the server using the Leader-Follower pattern
     return 0; // Return 0 to indicate successful execution
 }
