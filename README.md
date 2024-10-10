@@ -1,6 +1,3 @@
-Here’s the updated `README.md` file, incorporating the use of **ActiveObject** and **Pipeline** patterns, along with explanations of how these design patterns are utilized in the project, and details on how to run various profiling and coverage commands.
-
----
 
 # OS Final Project - Minimum Spanning Tree (MST) Server
 
